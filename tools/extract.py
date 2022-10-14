@@ -48,6 +48,11 @@ parser.add_argument('--LAMMPS',
                     help="LAMMPS structure file with equilibrium atomic \
                         positions (default: None)")
 
+parser.add_argument('--lmp_unit',
+                    default="metal",
+                    metavar="INPUT_UNIT",
+                    help="LAMMPS units, e.g. 'real', 'metal' (default)")
+
 parser.add_argument('--OpenMX',
                     metavar='supercell.dat',
                     help="OpenMX dat file with equilibrium atomic \
@@ -187,7 +192,7 @@ def run_parse(args, code, file_original, file_results, output_flags, str_unit):
         handler = LammpsParser()
 
     handler.parse(file_original, file_results, args.offset,
-                  str_unit, output_flags, args.emin, args.emax)
+                  str_unit, output_flags, args.emin, args.emax, args.lmp_units)
 
 if __name__ == "__main__":
 

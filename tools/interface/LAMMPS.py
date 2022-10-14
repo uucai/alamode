@@ -22,7 +22,9 @@ class LammpsParser(object):
         self._inverse_lattice_vector = None
         self._kd = None
         self._charges = None
+        self._mol = None
         self._common_settings = None
+        self._common_settings_topo = None
         self._nat = 0
         self._x_cartesian = None
         self._x_fractional = None
@@ -37,6 +39,7 @@ class LammpsParser(object):
         self._print_energy = False
         self._print_born = False
         self._BOHR_TO_ANGSTROM = 0.5291772108
+        self._KCALMOLE_TO_EV = 0.04336413
         self._RYDBERG_TO_EV = 13.60569253
 
     def load_initial_structure(self, file_in):
@@ -46,6 +49,7 @@ class LammpsParser(object):
         f.readline()
 
         common_settings = []
+        common_settings_topo = ["Bonds"]
         for line in f:
             if "Atoms" in line:
                 break
@@ -59,7 +63,13 @@ class LammpsParser(object):
         atoms = []
         for line in f:
             if line.strip():
+                if "Bonds" in line:
+                    break
                 atoms.append(line.rstrip().split())
+
+        if "Bonds" in line:
+            for line in f:
+                common_settings_topo.append(line.rstrip())
 
         atoms = np.array(atoms)
         nat = len(atoms)
@@ -69,12 +79,20 @@ class LammpsParser(object):
             kd = np.array(atoms[:, 1], dtype=np.int)
             x = np.array(atoms[:, 2:5], dtype=np.float64)
             charges = None
+            mol = None
         elif ncols == 6:
             kd = np.array(atoms[:, 1], dtype=np.int)
             x = np.array(atoms[:, 3:6], dtype=np.float64)
             charges = np.array(atoms[:, 2], dtype=np.float64)
+            mol = None
+        elif ncols == 7:
+            mol = np.array(atoms[:, 1], dtype=np.int)
+            kd = np.array(atoms[:, 2], dtype=np.int)
+            charges = np.array(atoms[:, 3], dtype=np.float64)
+            x = np.array(atoms[:, 4:7], dtype=np.float64)
 
         self._common_settings = common_settings
+        self._common_settings_topo = common_settings_topo
         self._lattice_vector = self._compute_lattice_vector_from_boxparams(lammps_box_params)
         self._inverse_lattice_vector = np.linalg.inv(self._lattice_vector)
         self._nat = nat
@@ -82,6 +100,7 @@ class LammpsParser(object):
         self._x_fractional = self._get_fractional_coordinate(x, self._inverse_lattice_vector)
         self._kd = kd
         self._charges = charges
+        self._mol = mol
         self._initial_structure_loaded = True
 
     def generate_structures(self, prefix, header_list, disp_list):
@@ -93,12 +112,12 @@ class LammpsParser(object):
             self._generate_input(header, disp)
 
     def parse(self, initial_lammps, dump_files, dump_file_offset, str_unit,
-              output_flags, filter_emin=None, filter_emax=None):
+              output_flags, filter_emin=None, filter_emax=None, lmp_units="metal"):
 
         if not self._initial_structure_loaded:
             self.load_initial_structure(initial_lammps)
 
-        self._set_unit_conversion_factor(str_unit)
+        self._set_unit_conversion_factor(str_unit, lmp_units)
         self._set_output_flags(output_flags)
 
         if self._print_disp and self._print_force:
@@ -128,7 +147,7 @@ class LammpsParser(object):
                     f.write("%20.15f" % (self._x_cartesian[i][j] + disp_tmp[j]))
                 f.write("\n")
             f.write("\n")
-        else:
+        elif bool(self._charges is not None) & bool(self._mol is None):
             for i in range(self._nat):
                 f.write("%5d %3d %11.6f" % (i + 1, self._kd[i], self._charges[i]))
                 disp_tmp = np.dot(disp[i], self._lattice_vector.transpose())
@@ -136,6 +155,16 @@ class LammpsParser(object):
                     f.write("%20.15f" % (self._x_cartesian[i][j] + disp_tmp[j]))
                 f.write("\n")
             f.write("\n")
+        else:
+            for i in range(self._nat):
+                f.write("%5d %4d %3d %11.6f" % (i + 1, self._mol[i], self._kd[i], self._charges[i]))
+                disp_tmp = np.dot(disp[i], self._lattice_vector.transpose())
+                for j in range(3):
+                    f.write("%20.15f" % (self._x_cartesian[i][j] + disp_tmp[j]))
+                f.write("\n")
+            f.write("\n")
+            for line in self._common_settings_topo:
+                f.write("%s\n" % line)
         f.close()
 
         self._counter += 1
@@ -321,7 +350,7 @@ class LammpsParser(object):
                 for i in range(self._nat):
                     print("%19.11E %19.11E %19.11E" % (f[i][0], f[i][1], f[i][2]))
 
-    def _set_unit_conversion_factor(self, str_unit):
+    def _set_unit_conversion_factor(self, str_unit, lmp_units):
 
         if str_unit == "ev":
             self._disp_conversion_factor = 1.0
@@ -337,6 +366,9 @@ class LammpsParser(object):
 
         else:
             raise RuntimeError("This cannot happen")
+
+        if lmp_units == "real":
+            self._energy_conversion_factor *= self._KCALMOLE_TO_EV 
 
         self._force_conversion_factor \
             = self._energy_conversion_factor / self._disp_conversion_factor
@@ -380,36 +412,24 @@ class LammpsParser(object):
     @staticmethod
     def _get_coordinate_and_force_lammps(lammps_dump_file):
 
-        add_flag = None
+        add_flag = False
         ret = []
 
         with open(lammps_dump_file) as f:
             for line in f:
-                #if "ITEM:" in line and "ITEM: ATOMS id xu yu zu fx fy fz" not in line:
-                #    add_flag = False
-                #    continue
-                if "ITEM: ATOMS id xu yu zu fx fy fz" in line:
-                    add_flag = "id.xu"
+                if "ITEM:" in line and "ITEM: ATOMS id xu yu zu fx fy fz" not in line:
+                    add_flag = False
                     continue
-                elif "ITEM: ATOMS element xu yu zu fx fy fz" in line:
-                    add_flag = "element.xu"
-                    id_ = 0
+                elif "ITEM: ATOMS id xu yu zu fx fy fz" in line:
+                    add_flag = True
                     continue
 
-                if add_flag is not None:
-                    if add_flag == "id.xu":
-                        if line.strip():
-                            entries = line.strip().split()
-                            data_atom = [int(entries[0]),
-                                        [float(t) for t in entries[1:4]],
-                                        [float(t) for t in entries[4:]]]
-                    elif add_flag == "element.xu":
-                        if line.strip():
-                            entries = line.strip().split()
-                            id_ += 1
-                            data_atom = [int(id_), 
-                                        [float(t) for t in entries[1:4]],
-                                        [float(t) for t in entries[4:]]]
+                if add_flag:
+                    if line.strip():
+                        entries = line.strip().split()
+                        data_atom = [int(entries[0]),
+                                     [float(t) for t in entries[1:4]],
+                                     [float(t) for t in entries[4:]]]
 
                         ret.append(data_atom)
 

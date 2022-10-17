@@ -21,8 +21,8 @@ with open(args.fin) as f:
         ib=int(element[5])
         iq=int(element[3])
         ix=int(element[1])
-        spec[ib,iq,0] = float(element[6])
-        spec[ib,iq,ix] += float(element[8])
+        spec[ib-1,iq-1,0] = float(element[6])
+        spec[ib-1,iq-1,ix] += float(element[8])
 
 spec[:,:,0]=spec[:,:,0]/33.356
 spec.reshape([nb*nq,4])

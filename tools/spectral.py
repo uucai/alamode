@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 
-from turtle import st
 import numpy as np
 import math
 import argparse
-
-import scipy as sp
 
 parser = argparse.ArgumentParser(description="derive spectral thermal conductivity of coherent component")
 

@@ -2,6 +2,7 @@
 
 from turtle import st
 import numpy as np
+import math
 import argparse
 
 import scipy as sp
@@ -30,7 +31,19 @@ spec[:,:,0]=spec[:,:,0]/33.356
 spec.reshape([nb*nq,4])
 index=np.argsort(spec[:,0])
 spec_sorted=spec[index,:]
-accu_kappa=np.zeros([len(spec_sorted),4])
+freq_max=spec_sorted[-1,0]
+df=0.1
+nf=math.ceil(freq_max/df)
+spec_kappa=np.zeros([nf,4])
+ifreq=1
+for i in range(len(spec_sorted)):
+    if spec_sorted[i,0] <=  ifreq*0.1:
+        spec_kappa[ifreq-1,:] += spec_sorted[i,:]
+    else:
+        ifreq += 1
+        spec_kappa[ifreq-1,:] += spec_sorted[i,:]
+        
+accu_kappa=np.zeros([nf,4])
 accu_kappa[0,:]=spec_sorted[0,:]
 for i in range(len(spec_sorted-1)):
     accu_kappa[i+1,0]=spec_sorted[i+1,0]

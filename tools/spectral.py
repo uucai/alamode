@@ -12,8 +12,8 @@ parser.add_argument('-nb','--nbranches',type=int,help="the number of phonon bran
 parser.add_argument('-nq','--nqpoints',type=int,help='the number of irreducible q points')
 args = parser.parse_args() 
 
-nb=args.nb
-nq=args.nq
+nb=args.nbranches
+nq=args.nqpoints
 spec=np.zeros([nq,nb,4])
 with open(args.fin) as f:
     for line in f:

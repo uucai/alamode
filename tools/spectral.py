@@ -18,11 +18,11 @@ spec=np.zeros([nq,nb,4])
 with open(args.fin) as f:
     for line in f:
         element=line.strip().split()
-        ib=int(element[5])
-        iq=int(element[3])
+        iq=int(element[5])
+        ib=int(element[3])
         ix=int(element[1])
-        spec[ib-1,iq-1,0] = float(element[6])
-        spec[ib-1,iq-1,ix] += float(element[8])
+        spec[iq-1,ib-1,0] = float(element[6])
+        spec[iq-1,ib-1,ix] += float(element[8])
 
 spec[:,:,0]=spec[:,:,0]/33.356
 spec=spec.reshape([nb*nq,4])
@@ -50,7 +50,7 @@ for i in range(len(spec_kappa)-1):
 
 with open(args.fout,'w') as f:
     for i in range(nf):
-        f.write("%15.5e %15.5e %15.5e %15.5e " % tuple(spec_kappa[i,:]))
+        f.write("%10.2f %15.5e %15.5e %15.5e " % tuple(spec_kappa[i,:]))
         f.write("%15.5e %15.5e %15.5e\n" % tuple(accu_kappa[i,1:4]))
 
 

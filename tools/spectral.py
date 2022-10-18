@@ -25,7 +25,7 @@ with open(args.fin) as f:
         spec[ib-1,iq-1,ix] += float(element[8])
 
 spec[:,:,0]=spec[:,:,0]/33.356
-a=spec.reshape([nb*nq,4])
+spec=spec.reshape([nb*nq,4])
 index=np.argsort(spec[:,0])
 spec_sorted=spec[index,:]
 freq_max=spec_sorted[-1,0]
@@ -33,12 +33,14 @@ df=0.1
 nf=math.ceil(freq_max/df)
 spec_kappa=np.zeros([nf,4])
 ifreq=1
+spec_kappa[0,0] = ifreq * 0.1
 for i in range(len(spec_sorted)):
     if spec_sorted[i,0] <=  ifreq*0.1:
-        spec_kappa[ifreq-1,:] += spec_sorted[i,:]
+        spec_kappa[ifreq-1,1:4] += spec_sorted[i,1:4]
     else:
         ifreq += 1
-        spec_kappa[ifreq-1,:] += spec_sorted[i,:]
+        spec_kappa[ifreq-1,0] = ifreq * 0.1
+        spec_kappa[ifreq-1,1:4] += spec_sorted[i,1:4]
         
 accu_kappa=np.zeros([nf,4])
 accu_kappa[0,:]=spec_kappa[0,:]
@@ -47,7 +49,7 @@ for i in range(len(spec_kappa)-1):
     accu_kappa[i+1,1:4]=accu_kappa[i,1:4]+spec_kappa[i+1,1:4]
 
 with open(args.fout,'w') as f:
-    for i in range(nq*nb):
+    for i in range(nf):
         f.write("%15.5e %15.5e %15.5e %15.5e " % tuple(spec_kappa[i,:]))
         f.write("%15.5e %15.5e %15.5e\n" % tuple(accu_kappa[i,1:4]))
 
